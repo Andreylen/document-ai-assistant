@@ -1,13 +1,13 @@
-import httpx
+import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
+
+from app.database import save_query, get_query_history
+from app.rag_service import answer_question
 
 
 app = FastAPI()
-
-OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-MODEL_NAME = "qwen3:4b-instruct"
 
 
 class QuestionRequest(BaseModel):
@@ -16,45 +16,48 @@ class QuestionRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "Document AI Assistant is running!"}
+    return {
+        "message": "Document AI Assistant is running!"
+    }
 
+@app.get("/history")
+def history(
+    limit: int = Query(default=10, ge=1, le=100)
+):
+    try:
+        return get_query_history(limit)
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
 
 @app.post("/ask")
 def ask(request: QuestionRequest):
-
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "system",
-                "content": "Answer clearly and concisely."
-            },
-            {
-                "role": "user",
-                "content": request.question
-            }
-        ],
-        "stream": False
-    }
-
     try:
-        response = httpx.post(
-            OLLAMA_URL,
-            json=payload,
-            timeout=120.0
+        start_time = time.perf_counter()
+
+        answer = answer_question(request.question)
+
+        response_time_ms = int(
+            (time.perf_counter() - start_time) * 1000
         )
 
-        response.raise_for_status()
+        save_query(
+            question=request.question,
+            answer=answer,
+            response_time_ms=response_time_ms,
+        )
 
-    except httpx.HTTPError as error:
+        return {
+            "question": request.question,
+            "answer": answer,
+            "response_time_ms": response_time_ms,
+        }
+
+    except Exception as error:
         raise HTTPException(
-            status_code=503,
-            detail=f"Could not communicate with Ollama: {error}"
+            status_code=500,
+            detail=str(error),
         )
-
-    data = response.json()
-
-    return {
-        "question": request.question,
-        "answer": data["message"]["content"]
-    }
