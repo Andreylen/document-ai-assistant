@@ -1,13 +1,21 @@
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.database import save_query, get_query_history
 from app.rag_service import answer_question
 
 
-app = FastAPI()
+app = FastAPI(
+    title="Document AI Assistant",
+    description="RAG-based document question-answering API",
+)
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 class QuestionRequest(BaseModel):
@@ -16,9 +24,16 @@ class QuestionRequest(BaseModel):
 
 @app.get("/")
 def root():
+    return FileResponse(BASE_DIR / "index.html")
+
+
+@app.get("/health")
+def health():
     return {
-        "message": "Document AI Assistant is running!"
+        "status": "ok",
+        "message": "Document AI Assistant is running!",
     }
+
 
 @app.get("/history")
 def history(
@@ -26,12 +41,12 @@ def history(
 ):
     try:
         return get_query_history(limit)
-
     except Exception as error:
         raise HTTPException(
             status_code=500,
             detail=str(error),
         )
+
 
 @app.post("/ask")
 def ask(request: QuestionRequest):
