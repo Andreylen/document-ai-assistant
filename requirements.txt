@@ -10,3 +10,4 @@ langchain-qdrant
 qdrant-client
 psycopg[binary]
 python-dotenv
+pytest

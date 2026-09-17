@@ -50,6 +50,12 @@ def history(
 
 @app.post("/ask")
 def ask(request: QuestionRequest):
+    if not request.question or not request.question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty.",
+        )
+
     try:
         start_time = time.perf_counter()
 
